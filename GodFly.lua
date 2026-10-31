@@ -1,95 +1,211 @@
--- God Mode + Fly + Draggable UI Button
-
+-- Boss Fight Pro Script: Fly, God Mode, Speed, Weapon Tool Spawner & Hit Injector
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local root = character:WaitForChild("HumanoidRootPart")
 
+-- Feature States
 local flying = false
 local godMode = false
+local speedEnabled = false
+local weaponSpawnerEnabled = false
+local autoHitEnabled = false
+
+local FLY_SPEED = 32
+local CUSTOM_WALK_SPEED = 24
+local isMobile = UserInputService.TouchEnabled
+
 local bodyVelocity = nil
 local bodyGyro = nil
 local healthConnection = nil
 local flyConnection = nil
 
-local FLY_SPEED = 32
-local isMobile = UserInputService.TouchEnabled
-
--- ==================== UI (Draggable Fly Button) ====================
+-- ==================== UI SETUP ====================
 local function createUI()
-	local old = player.PlayerGui:FindFirstChild("GodFlyUI")
+	local old = player.PlayerGui:FindFirstChild("BossProMenu")
 	if old then old:Destroy() end
 
 	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "GodFlyUI"
+	screenGui.Name = "BossProMenu"
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
 	screenGui.DisplayOrder = 999
 	screenGui.Parent = player:WaitForChild("PlayerGui")
 
-	local flyButton = Instance.new("TextButton")
-	flyButton.Name = "FlyButton"
-	flyButton.Size = UDim2.new(0, 170, 0, 44)
-	flyButton.Position = UDim2.new(0.5, -85, 0.84, 0)
-	flyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	flyButton.Font = Enum.Font.GothamBold
-	flyButton.TextSize = 16
-	flyButton.Text = "Fly + God: OFF"
-	flyButton.Parent = screenGui
+	-- Main Menu Frame (Draggable)
+	local mainFrame = Instance.new("Frame")
+	mainFrame.Name = "MainFrame"
+	mainFrame.Size = UDim2.new(0, 200, 0, 310)
+	mainFrame.Position = UDim2.new(0.65, -100, 0.25, 0)
+	mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+	mainFrame.BorderSizePixel = 0
+	mainFrame.Parent = screenGui
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = flyButton
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = mainFrame
 
-	-- ==================== DRAGGABLE LOGIC ====================
-	local dragging = false
-	local dragInput, dragStart, startPos
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 35)
+	title.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 14
+	title.Text = "Boss Fight Pro"
+	title.Parent = mainFrame
+	
+	local titleCorner = Instance.new("UICorner")
+	titleCorner.CornerRadius = UDim.new(0, 12)
+	titleCorner.Parent = title
 
-	flyButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = flyButton.Position
+	-- Minimize / Open Floating Circle Button
+	local minButton = Instance.new("TextButton")
+	minButton.Name = "MinButton"
+	minButton.Size = UDim2.new(0, 45, 0, 45)
+	minButton.Position = UDim2.new(0.9, -45, 0.15, 0)
+	minButton.BackgroundColor3 = Color3.fromRGB(0, 130, 255)
+	minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	minButton.Font = Enum.Font.GothamBold
+	minButton.TextSize = 18
+	minButton.Text = "⚙️"
+	minButton.Parent = screenGui
 
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
+	local minCorner = Instance.new("UICorner")
+	minCorner.CornerRadius = UDim.new(1, 0)
+	minCorner.Parent = minButton
+
+	local menuVisible = true
+	minButton.MouseButton1Click:Connect(function()
+		menuVisible = not menuVisible
+		mainFrame.Visible = menuVisible
+	end)
+
+	-- Toggle Button Helper
+	local function createToggle(name, yPos, callback)
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(0, 180, 0, 32)
+		btn.Position = UDim2.new(0.5, -90, 0, yPos)
+		btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 12
+		btn.Text = name .. ": OFF"
+		btn.Parent = mainFrame
+
+		local btnCorner = Instance.new("UICorner")
+		btnCorner.CornerRadius = UDim.new(0, 8)
+		btnCorner.Parent = btn
+
+		local active = false
+		btn.MouseButton1Click:Connect(function()
+			active = not active
+			if active then
+				btn.BackgroundColor3 = Color3.fromRGB(0, 130, 255)
+				btn.Text = name .. ": ON"
+			else
+				btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+				btn.Text = name .. ": OFF"
+			end
+			callback(active)
+		end)
+	end
+
+	createToggle("Fly + God Mode", 42, function(state) 
+		if state then
+			startFly()
+			enableGodMode()
+		else
+			stopFly()
+			disableGodMode()
 		end
 	end)
 
-	flyButton.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
+	createToggle("Speed Boost", 78, function(state) speedEnabled = state end)
+	createToggle("Auto Boss Hit / Gun", 114, function(state) autoHitEnabled = state end)
+
+	-- Custom Weapon/Tool Spawner Button
+	local spawnBtn = Instance.new("TextButton")
+	spawnBtn.Size = UDim2.new(0, 180, 0, 32)
+	spawnBtn.Position = UDim2.new(0.5, -90, 0, 150)
+	spawnBtn.BackgroundColor3 = Color3.fromRGB(0, 160, 80)
+	spawnBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	spawnBtn.Font = Enum.Font.GothamBold
+	spawnBtn.TextSize = 12
+	spawnBtn.Text = "Spawn Test Pistol/Sword"
+	spawnBtn.Parent = mainFrame
+
+	local spawnCorner = Instance.new("UICorner")
+	spawnCorner.CornerRadius = UDim.new(0, 8)
+	spawnCorner.Parent = spawnBtn
+
+	spawnBtn.MouseButton1Click:Connect(function()
+		pcall(function()
+			-- Creates a custom tool in backpack for visual/testing use
+			local tool = Instance.new("Tool")
+			tool.Name = "Pro Blaster / Sword"
+			local handle = Instance.new("Part")
+			handle.Name = "Handle"
+			handle.Size = Vector3.new(1, 1, 3)
+			handle.BrickColor = BrickColor.new("Bright blue")
+			handle.Parent = tool
+			tool.Parent = player.Backpack
+		end)
+	end)
+
+	-- Minimize button inside menu
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.Size = UDim2.new(0, 180, 0, 28)
+	closeBtn.Position = UDim2.new(0.5, -90, 0, 260)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextSize = 12
+	closeBtn.Text = "Hide Menu"
+	closeBtn.Parent = mainFrame
+
+	local closeCorner = Instance.new("UICorner")
+	closeCorner.CornerRadius = UDim.new(0, 8)
+	closeCorner.Parent = closeBtn
+
+	closeBtn.MouseButton1Click:Connect(function()
+		mainFrame.Visible = false
+	end)
+
+	-- Draggable Window Logic for Main Frame
+	local dragging, dragStart, startPos
+	title.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = mainFrame.Position
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
-			flyButton.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
+			mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
 	end)
-	-- ==========================================================
 
-	return flyButton
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	return screenGui
 end
 
-local flyButton = createUI()
+createUI()
 
 -- ==================== FUNCTIONS ====================
-local function enableGodMode()
+enableGodMode = function()
 	godMode = true
 	humanoid.MaxHealth = math.huge
 	humanoid.Health = math.huge
@@ -102,7 +218,7 @@ local function enableGodMode()
 	end)
 end
 
-local function disableGodMode()
+disableGodMode = function()
 	godMode = false
 	if healthConnection then
 		healthConnection:Disconnect()
@@ -114,7 +230,7 @@ local function disableGodMode()
 	end)
 end
 
-local function startFly()
+startFly = function()
 	if flying then return end
 	flying = true
 
@@ -158,7 +274,7 @@ local function startFly()
 	end)
 end
 
-local function stopFly()
+stopFly = function()
 	flying = false
 	if flyConnection then
 		flyConnection:Disconnect()
@@ -169,31 +285,39 @@ local function stopFly()
 	if humanoid then humanoid.PlatformStand = false end
 end
 
-local function toggleFly()
-	if flying then
-		stopFly()
-		disableGodMode()
-		flyButton.Text = "Fly + God: OFF"
-		flyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	else
-		startFly()
-		enableGodMode()
-		flyButton.Text = "Fly + God: ON"
-		flyButton.BackgroundColor3 = Color3.fromRGB(0, 130, 255)
+-- ==================== RUNTIME LOOP ====================
+RunService.Heartbeat:Connect(function()
+	if not character or not humanoid or not root then return end
+
+	-- Speed Boost Loop
+	if speedEnabled then
+		humanoid.WalkSpeed = CUSTOM_WALK_SPEED
 	end
-end
 
--- ==================== CONNECTIONS ====================
-flyButton.MouseButton1Click:Connect(toggleFly)
+	-- Auto Boss Hit Injector (Scans workspace for boss models and simulates touch/hit interactions)
+	if autoHitEnabled then
+		pcall(function()
+			for _, obj in pairs(Workspace:GetDescendants()) do
+				if obj:IsA("Model") and (obj.Name:find("Boss") or obj.Name:find("Treant") or obj.Name:find("Thornhart")) then
+					local bossRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
+					if bossRoot and (bossRoot.Position - root.Position).Magnitude < 40 then
+						-- Teleports tool handle or character close to register hit events if server allows client proximity
+						root.CFrame = CFrame.new(bossRoot.Position + Vector3.new(0, 0, 3))
+					end
+				end
+			end
+		end)
+	end
+end)
 
+-- Character Respawn Handler
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = character:WaitForChild("Humanoid")
 	root = character:WaitForChild("HumanoidRootPart")
 
 	task.wait(0.6)
-	flyButton = createUI()
-	flyButton.MouseButton1Click:Connect(toggleFly)
+	createUI()
 
 	if flying then
 		stopFly()
@@ -205,15 +329,4 @@ player.CharacterAdded:Connect(function(newChar)
 	end
 end)
 
--- Keep UI alive
-task.spawn(function()
-	while true do
-		task.wait(4)
-		if not player.PlayerGui:FindFirstChild("GodFlyUI") then
-			flyButton = createUI()
-			flyButton.MouseButton1Click:Connect(toggleFly)
-		end
-	end
-end)
-
-print("[GodFly] Draggable + God Mode version loaded")
+print("[Boss Pro] Script loaded with Menu, Fly, God Mode, and Weapon Spawner!")
