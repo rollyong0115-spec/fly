@@ -1,4 +1,4 @@
--- Boss Fight Pro Script: Fly, God Mode, Speed, Auto Boss Damage & Auto Punch
+-- Boss Fight Pro Script: Fly, God Mode, Speed, Instant 1-Hit Boss Kill & Auto Punch
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -13,7 +13,7 @@ local root = character:WaitForChild("HumanoidRootPart")
 local flying = false
 local godMode = false
 local speedEnabled = false
-local autoHitEnabled = false
+local instantKillEnabled = false
 local autoPunchEnabled = false
 
 local FLY_SPEED = 32
@@ -125,7 +125,7 @@ local function createUI()
 	end)
 
 	createToggle("Speed Boost", 85, function(state) speedEnabled = state end)
-	createToggle("Auto Boss Damage", 125, function(state) autoHitEnabled = state end)
+	createToggle("Instant 1-Hit Boss Kill", 125, function(state) instantKillEnabled = state end)
 	createToggle("Auto Punch / Attack", 165, function(state) autoPunchEnabled = state end)
 
 	local closeBtn = Instance.new("TextButton")
@@ -264,28 +264,27 @@ RunService.Heartbeat:Connect(function()
 		humanoid.WalkSpeed = CUSTOM_WALK_SPEED
 	end
 
-	-- Auto Boss Damage Loop
-	if autoHitEnabled then
+	-- Instant 1-Hit Boss Kill Loop (Sets boss health to 0 instantly)
+	if instantKillEnabled then
 		pcall(function()
 			for _, obj in pairs(Workspace:GetDescendants()) do
 				if obj:IsA("Model") and (obj.Name:find("Boss") or obj.Name:find("Treant") or obj.Name:find("Thornhart")) then
 					local bossHum = obj:FindFirstChildOfClass("Humanoid")
 					if bossHum and bossHum.Health > 0 then
-						bossHum.Health = bossHum.Health - 5
+						bossHum.Health = 0
 					end
 				end
 			end
 		end)
 	end
 
-	-- Auto Punch / Attack Loop (Activates equipped tool or simulates click)
+	-- Auto Punch / Attack Loop
 	if autoPunchEnabled then
 		pcall(function()
 			local tool = character:FindFirstChildOfClass("Tool")
 			if tool then
 				tool:Activate()
 			else
-				-- Simulates clicking/tapping the screen to punch if no tool is out
 				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
 				task.wait(0.05)
 				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
@@ -312,4 +311,4 @@ player.CharacterAdded:Connect(function(newChar)
 	end
 end)
 
-print("[Boss Pro] Updated with Auto Punch / Attack feature!")
+print("[Boss Pro] Updated with Instant 1-Hit Boss Kill!")
