@@ -1,28 +1,22 @@
--- Advanced Real-Time Remote Spy
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- Safe Remote Scanner (No Hooks - Won't Crash)
+print("--- [SafeScanner] Scanning for Remotes ---")
 
-print("--- [RemoteSpy] Started Listening to Game Traffic ---")
-
--- Hook into all RemoteEvents in the game
-for _, obj in pairs(game:GetDescendants()) do
-	if obj:IsA("RemoteEvent") then
-		pcall(function()
-			obj.OnClientEvent:Connect(function(...)
-				print("[ClientEvent Received]:", obj:GetFullName(), ...)
-			end)
-		end)
+local function scanFolder(folder)
+	for _, child in pairs(folder:GetDescendants()) do
+		if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+			print("Found Remote:", child:GetFullName())
+		end
 	end
 end
 
--- Intercept when anything tries to fire a remote to the server
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-	local method = getnamecallmethod()
-	if (method == "FireServer" or method == "InvokeServer") and self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
-		print("[Remote Fired] ->", self:GetFullName(), "Arguments:", ...)
-	end
-	return oldNamecall(self, ...)
+pcall(function()
+	scanFolder(game:GetService("ReplicatedStorage"))
 end)
 
-print("--- [RemoteSpy] Ready! Attack the boss now and check logs. ---")
+pcall(function()
+	if game:GetService("Workspace"):FindFirstChild("Remotes") then
+		scanFolder(game:GetService("Workspace").Remotes)
+	end
+end)
+
+print("--- [SafeScanner] Scan Complete! ---")
