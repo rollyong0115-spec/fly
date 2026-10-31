@@ -1,4 +1,4 @@
--- God Mode + Fly + Auto Attack on Boss
+-- God Mode + Fly + Draggable UI Button
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,12 +15,11 @@ local bodyVelocity = nil
 local bodyGyro = nil
 local healthConnection = nil
 local flyConnection = nil
-local autoAttackConnection = nil
 
 local FLY_SPEED = 32
 local isMobile = UserInputService.TouchEnabled
 
--- ==================== UI (only Fly button) ====================
+-- ==================== UI (Draggable Fly Button) ====================
 local function createUI()
 	local old = player.PlayerGui:FindFirstChild("GodFlyUI")
 	if old then old:Destroy() end
@@ -47,6 +46,43 @@ local function createUI()
 	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = flyButton
 
+	-- ==================== DRAGGABLE LOGIC ====================
+	local dragging = false
+	local dragInput, dragStart, startPos
+
+	flyButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = flyButton.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	flyButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			flyButton.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+	-- ==========================================================
+
 	return flyButton
 end
 
@@ -72,8 +108,10 @@ local function disableGodMode()
 		healthConnection:Disconnect()
 		healthConnection = nil
 	end
-	humanoid.MaxHealth = 100
-	humanoid.Health = 100
+	pcall(function()
+		humanoid.MaxHealth = 100
+		humanoid.Health = 100
+	end)
 end
 
 local function startFly()
@@ -145,38 +183,6 @@ local function toggleFly()
 	end
 end
 
--- ==================== AUTO ATTACK ====================
-local function findBoss()
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA("Model") and obj.Name:lower():find("thornhart") then
-			return obj
-		end
-		if obj:IsA("Model") and obj.Name:lower():find("treant") then
-			return obj
-		end
-	end
-	return nil
-end
-
-local function startAutoAttack()
-	if autoAttackConnection then return end
-
-	autoAttackConnection = RunService.Heartbeat:Connect(function()
-		local boss = findBoss()
-		if boss then
-			-- Boss is present → try to keep attacking
-			-- (This is a basic version. We can improve it later with the correct remote)
-			pcall(function()
-				-- Simple attempt: look for any click detector or proximity
-				-- Most of the real damage still comes from the slime itself
-			end)
-		end
-	end)
-end
-
--- Start auto attack checker
-startAutoAttack()
-
 -- ==================== CONNECTIONS ====================
 flyButton.MouseButton1Click:Connect(toggleFly)
 
@@ -210,4 +216,4 @@ task.spawn(function()
 	end
 end)
 
-print("[GodFly] Auto Attack version loaded")
+print("[GodFly] Draggable + God Mode version loaded")
