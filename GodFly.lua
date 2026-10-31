@@ -1,20 +1,20 @@
--- Boss Fight Pro Script: Fly, God Mode, Speed, Weapon Tool Spawner & Hit Injector
+-- Boss Fight Pro Script: Fly, God Mode, Speed, Auto Boss Damage & Auto Punch
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local root = character:WaitForChild("HumanoidRootPart")
 
--- Feature States
 local flying = false
 local godMode = false
 local speedEnabled = false
-local weaponSpawnerEnabled = false
 local autoHitEnabled = false
+local autoPunchEnabled = false
 
 local FLY_SPEED = 32
 local CUSTOM_WALK_SPEED = 24
@@ -34,16 +34,16 @@ local function createUI()
 	screenGui.Name = "BossProMenu"
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
-	screenGui.DisplayOrder = 999
+	screenGui.DisplayOrder = 9999
 	screenGui.Parent = player:WaitForChild("PlayerGui")
 
-	-- Main Menu Frame (Draggable)
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "MainFrame"
-	mainFrame.Size = UDim2.new(0, 200, 0, 310)
-	mainFrame.Position = UDim2.new(0.65, -100, 0.25, 0)
+	mainFrame.Size = UDim2.new(0, 200, 0, 315)
+	mainFrame.Position = UDim2.new(0.5, -190, 0.3, 0)
 	mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 	mainFrame.BorderSizePixel = 0
+	mainFrame.Active = true
 	mainFrame.Parent = screenGui
 
 	local corner = Instance.new("UICorner")
@@ -63,29 +63,27 @@ local function createUI()
 	titleCorner.CornerRadius = UDim.new(0, 12)
 	titleCorner.Parent = title
 
-	-- Minimize / Open Floating Circle Button
+	-- Floating Minimize Button
 	local minButton = Instance.new("TextButton")
 	minButton.Name = "MinButton"
 	minButton.Size = UDim2.new(0, 45, 0, 45)
-	minButton.Position = UDim2.new(0.9, -45, 0.15, 0)
+	minButton.Position = UDim2.new(0.75, 0, 0.05, 0)
 	minButton.BackgroundColor3 = Color3.fromRGB(0, 130, 255)
 	minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 	minButton.Font = Enum.Font.GothamBold
 	minButton.TextSize = 18
 	minButton.Text = "⚙️"
+	minButton.Active = true
 	minButton.Parent = screenGui
 
 	local minCorner = Instance.new("UICorner")
 	minCorner.CornerRadius = UDim.new(1, 0)
 	minCorner.Parent = minButton
 
-	local menuVisible = true
 	minButton.MouseButton1Click:Connect(function()
-		menuVisible = not menuVisible
-		mainFrame.Visible = menuVisible
+		mainFrame.Visible = not mainFrame.Visible
 	end)
 
-	-- Toggle Button Helper
 	local function createToggle(name, yPos, callback)
 		local btn = Instance.new("TextButton")
 		btn.Size = UDim2.new(0, 180, 0, 32)
@@ -95,6 +93,7 @@ local function createUI()
 		btn.Font = Enum.Font.GothamSemibold
 		btn.TextSize = 12
 		btn.Text = name .. ": OFF"
+		btn.Active = true
 		btn.Parent = mainFrame
 
 		local btnCorner = Instance.new("UICorner")
@@ -115,7 +114,7 @@ local function createUI()
 		end)
 	end
 
-	createToggle("Fly + God Mode", 42, function(state) 
+	createToggle("Fly + God Mode", 45, function(state) 
 		if state then
 			startFly()
 			enableGodMode()
@@ -125,47 +124,19 @@ local function createUI()
 		end
 	end)
 
-	createToggle("Speed Boost", 78, function(state) speedEnabled = state end)
-	createToggle("Auto Boss Hit / Gun", 114, function(state) autoHitEnabled = state end)
+	createToggle("Speed Boost", 85, function(state) speedEnabled = state end)
+	createToggle("Auto Boss Damage", 125, function(state) autoHitEnabled = state end)
+	createToggle("Auto Punch / Attack", 165, function(state) autoPunchEnabled = state end)
 
-	-- Custom Weapon/Tool Spawner Button
-	local spawnBtn = Instance.new("TextButton")
-	spawnBtn.Size = UDim2.new(0, 180, 0, 32)
-	spawnBtn.Position = UDim2.new(0.5, -90, 0, 150)
-	spawnBtn.BackgroundColor3 = Color3.fromRGB(0, 160, 80)
-	spawnBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	spawnBtn.Font = Enum.Font.GothamBold
-	spawnBtn.TextSize = 12
-	spawnBtn.Text = "Spawn Test Pistol/Sword"
-	spawnBtn.Parent = mainFrame
-
-	local spawnCorner = Instance.new("UICorner")
-	spawnCorner.CornerRadius = UDim.new(0, 8)
-	spawnCorner.Parent = spawnBtn
-
-	spawnBtn.MouseButton1Click:Connect(function()
-		pcall(function()
-			-- Creates a custom tool in backpack for visual/testing use
-			local tool = Instance.new("Tool")
-			tool.Name = "Pro Blaster / Sword"
-			local handle = Instance.new("Part")
-			handle.Name = "Handle"
-			handle.Size = Vector3.new(1, 1, 3)
-			handle.BrickColor = BrickColor.new("Bright blue")
-			handle.Parent = tool
-			tool.Parent = player.Backpack
-		end)
-	end)
-
-	-- Minimize button inside menu
 	local closeBtn = Instance.new("TextButton")
-	closeBtn.Size = UDim2.new(0, 180, 0, 28)
+	closeBtn.Size = UDim2.new(0, 180, 0, 30)
 	closeBtn.Position = UDim2.new(0.5, -90, 0, 260)
 	closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
 	closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextSize = 12
 	closeBtn.Text = "Hide Menu"
+	closeBtn.Active = true
 	closeBtn.Parent = mainFrame
 
 	local closeCorner = Instance.new("UICorner")
@@ -176,7 +147,7 @@ local function createUI()
 		mainFrame.Visible = false
 	end)
 
-	-- Draggable Window Logic for Main Frame
+	-- Draggable Main Window Logic
 	local dragging, dragStart, startPos
 	title.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -289,28 +260,40 @@ end
 RunService.Heartbeat:Connect(function()
 	if not character or not humanoid or not root then return end
 
-	-- Speed Boost Loop
 	if speedEnabled then
 		humanoid.WalkSpeed = CUSTOM_WALK_SPEED
 	end
 
-	-- Auto Boss Hit Injector (Scans workspace for boss models and simulates touch/hit interactions)
+	-- Auto Boss Damage Loop
 	if autoHitEnabled then
 		pcall(function()
 			for _, obj in pairs(Workspace:GetDescendants()) do
 				if obj:IsA("Model") and (obj.Name:find("Boss") or obj.Name:find("Treant") or obj.Name:find("Thornhart")) then
-					local bossRoot = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Head")
-					if bossRoot and (bossRoot.Position - root.Position).Magnitude < 40 then
-						-- Teleports tool handle or character close to register hit events if server allows client proximity
-						root.CFrame = CFrame.new(bossRoot.Position + Vector3.new(0, 0, 3))
+					local bossHum = obj:FindFirstChildOfClass("Humanoid")
+					if bossHum and bossHum.Health > 0 then
+						bossHum.Health = bossHum.Health - 5
 					end
 				end
 			end
 		end)
 	end
+
+	-- Auto Punch / Attack Loop (Activates equipped tool or simulates click)
+	if autoPunchEnabled then
+		pcall(function()
+			local tool = character:FindFirstChildOfClass("Tool")
+			if tool then
+				tool:Activate()
+			else
+				-- Simulates clicking/tapping the screen to punch if no tool is out
+				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+				task.wait(0.05)
+				VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+			end
+		end)
+	end
 end)
 
--- Character Respawn Handler
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = character:WaitForChild("Humanoid")
@@ -329,4 +312,4 @@ player.CharacterAdded:Connect(function(newChar)
 	end
 end)
 
-print("[Boss Pro] Script loaded with Menu, Fly, God Mode, and Weapon Spawner!")
+print("[Boss Pro] Updated with Auto Punch / Attack feature!")
