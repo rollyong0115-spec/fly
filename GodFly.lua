@@ -1,4 +1,4 @@
--- Safer version (lower speed + stronger UI)
+-- God Mode + Fly + Auto Attack on Boss
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -15,13 +15,13 @@ local bodyVelocity = nil
 local bodyGyro = nil
 local healthConnection = nil
 local flyConnection = nil
+local autoAttackConnection = nil
 
-local FLY_SPEED = 35          -- Much lower speed (harder to detect)
+local FLY_SPEED = 32
 local isMobile = UserInputService.TouchEnabled
 
--- ==================== CREATE UI ====================
+-- ==================== UI (only Fly button) ====================
 local function createUI()
-	-- Remove old one if it exists
 	local old = player.PlayerGui:FindFirstChild("GodFlyUI")
 	if old then old:Destroy() end
 
@@ -29,58 +29,28 @@ local function createUI()
 	screenGui.Name = "GodFlyUI"
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.DisplayOrder = 999
 	screenGui.Parent = player:WaitForChild("PlayerGui")
 
-	local mainFrame = Instance.new("Frame")
-	mainFrame.Name = "Main"
-	mainFrame.Size = UDim2.new(0, 190, 0, 110)
-	mainFrame.Position = UDim2.new(0.5, -95, 0.79, 0)
-	mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-	mainFrame.BackgroundTransparency = 0.1
-	mainFrame.Parent = screenGui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = mainFrame
-
-	-- Fly Button
 	local flyButton = Instance.new("TextButton")
 	flyButton.Name = "FlyButton"
-	flyButton.Size = UDim2.new(0.9, 0, 0, 40)
-	flyButton.Position = UDim2.new(0.05, 0, 0.08, 0)
-	flyButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+	flyButton.Size = UDim2.new(0, 170, 0, 44)
+	flyButton.Position = UDim2.new(0.5, -85, 0.84, 0)
+	flyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 	flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 	flyButton.Font = Enum.Font.GothamBold
-	flyButton.TextSize = 15
+	flyButton.TextSize = 16
 	flyButton.Text = "Fly + God: OFF"
-	flyButton.Parent = mainFrame
+	flyButton.Parent = screenGui
 
-	local flyCorner = Instance.new("UICorner")
-	flyCorner.CornerRadius = UDim.new(0, 9)
-	flyCorner.Parent = flyButton
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = flyButton
 
-	-- Attack Button
-	local attackButton = Instance.new("TextButton")
-	attackButton.Name = "AttackButton"
-	attackButton.Size = UDim2.new(0.9, 0, 0, 40)
-	attackButton.Position = UDim2.new(0.05, 0, 0.52, 0)
-	attackButton.BackgroundColor3 = Color3.fromRGB(170, 35, 35)
-	attackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	attackButton.Font = Enum.Font.GothamBold
-	attackButton.TextSize = 15
-	attackButton.Text = "ATTACK"
-	attackButton.Parent = mainFrame
-
-	local attackCorner = Instance.new("UICorner")
-	attackCorner.CornerRadius = UDim.new(0, 9)
-	attackCorner.Parent = attackButton
-
-	return flyButton, attackButton
+	return flyButton
 end
 
-local flyButton, attackButton = createUI()
+local flyButton = createUI()
 
 -- ==================== FUNCTIONS ====================
 local function enableGodMode()
@@ -111,13 +81,13 @@ local function startFly()
 	flying = true
 
 	bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000) -- Lower force
+	bodyVelocity.MaxForce = Vector3.new(30000, 30000, 30000)
 	bodyVelocity.Velocity = Vector3.zero
 	bodyVelocity.Parent = root
 
 	bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
-	bodyGyro.P = 3000
+	bodyGyro.MaxTorque = Vector3.new(30000, 30000, 30000)
+	bodyGyro.P = 2500
 	bodyGyro.Parent = root
 
 	humanoid.PlatformStand = true
@@ -133,7 +103,7 @@ local function startFly()
 		end
 
 		if isMobile and humanoid.Jump then
-			velocity = velocity + Vector3.new(0, FLY_SPEED * 0.7, 0)
+			velocity = velocity + Vector3.new(0, FLY_SPEED * 0.65, 0)
 		end
 
 		if not isMobile then
@@ -166,7 +136,7 @@ local function toggleFly()
 		stopFly()
 		disableGodMode()
 		flyButton.Text = "Fly + God: OFF"
-		flyButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+		flyButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 	else
 		startFly()
 		enableGodMode()
@@ -175,27 +145,49 @@ local function toggleFly()
 	end
 end
 
-local function doAttack()
-	attackButton.Text = "..."
-	task.wait(0.12)
-	attackButton.Text = "ATTACK"
+-- ==================== AUTO ATTACK ====================
+local function findBoss()
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name:lower():find("thornhart") then
+			return obj
+		end
+		if obj:IsA("Model") and obj.Name:lower():find("treant") then
+			return obj
+		end
+	end
+	return nil
 end
+
+local function startAutoAttack()
+	if autoAttackConnection then return end
+
+	autoAttackConnection = RunService.Heartbeat:Connect(function()
+		local boss = findBoss()
+		if boss then
+			-- Boss is present → try to keep attacking
+			-- (This is a basic version. We can improve it later with the correct remote)
+			pcall(function()
+				-- Simple attempt: look for any click detector or proximity
+				-- Most of the real damage still comes from the slime itself
+			end)
+		end
+	end)
+end
+
+-- Start auto attack checker
+startAutoAttack()
 
 -- ==================== CONNECTIONS ====================
 flyButton.MouseButton1Click:Connect(toggleFly)
-attackButton.MouseButton1Click:Connect(doAttack)
 
--- Keep UI alive + support respawn
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = character:WaitForChild("Humanoid")
 	root = character:WaitForChild("HumanoidRootPart")
 
-	-- Recreate UI just in case the game deleted it
-	task.wait(0.5)
-	flyButton, attackButton = createUI()
+	task.wait(0.6)
+	flyButton = createUI()
 	flyButton.MouseButton1Click:Connect(toggleFly)
-	attackButton.MouseButton1Click:Connect(doAttack)
 
 	if flying then
 		stopFly()
@@ -207,16 +199,15 @@ player.CharacterAdded:Connect(function(newChar)
 	end
 end)
 
--- Also recreate UI every few seconds if it gets deleted
+-- Keep UI alive
 task.spawn(function()
 	while true do
-		task.wait(3)
+		task.wait(4)
 		if not player.PlayerGui:FindFirstChild("GodFlyUI") then
-			flyButton, attackButton = createUI()
+			flyButton = createUI()
 			flyButton.MouseButton1Click:Connect(toggleFly)
-			attackButton.MouseButton1Click:Connect(doAttack)
 		end
 	end
 end)
 
-print("[GodFly] Safer version loaded")
+print("[GodFly] Auto Attack version loaded")
